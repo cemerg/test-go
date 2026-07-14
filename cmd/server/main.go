@@ -17,11 +17,18 @@ type PageData struct {
 	ActiveTab string
 	IconSizes []string
 	Users     []User
+	Projects  []Project
 }
 
 type User struct {
 	ID   int
 	Name string
+}
+
+type Project struct {
+	ID   int
+	Name string
+	Type string
 }
 
 func getDatabaseDSN() string {
@@ -47,6 +54,47 @@ func loadUsers(ctx context.Context, pool *pgxpool.Pool) ([]User, error) {
 		users = append(users, u)
 	}
 	return users, rows.Err()
+}
+
+func loadProjects(ctx context.Context, pool *pgxpool.Pool) ([]Project, error) {
+	rows, err := pool.Query(ctx, `SELECT id, name, type FROM "Project" ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var projects []Project
+	for rows.Next() {
+		var p Project
+		if err := rows.Scan(&p.ID, &p.Name, &p.Type); err != nil {
+			return nil, err
+		}
+		projects = append(projects, p)
+	}
+	return projects, rows.Err()
+}
+
+func ensureDatabaseSchema(ctx context.Context, pool *pgxpool.Pool) error {
+	if _, err := pool.Exec(ctx, `
+CREATE TABLE IF NOT EXISTS "User" (
+    id SERIAL PRIMARY KEY,
+    "Name" TEXT NOT NULL
+);
+`); err != nil {
+		return err
+	}
+
+	if _, err := pool.Exec(ctx, `
+CREATE TABLE IF NOT EXISTS "Project" (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL
+);
+`); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 const layout = `
@@ -88,6 +136,9 @@ const layout = `
                 </a>
                 <a href="/settings" class="flex items-center px-5 py-3.5 rounded-xl transition-all duration-300 font-medium {{if eq .ActiveTab "settings"}}bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-600/20{{else}}text-slate-400 hover:bg-slate-900 hover:text-slate-200{{end}}">
                     System Settings
+                </a>
+                <a href="/projects" class="flex items-center px-5 py-3.5 rounded-xl transition-all duration-300 font-medium {{if eq .ActiveTab "projects"}}bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-600/20{{else}}text-slate-400 hover:bg-slate-900 hover:text-slate-200{{end}}">
+                    Projects
                 </a>
             </nav>
         </div>
@@ -131,6 +182,11 @@ const dashboardTemplate = `
         <p class="text-base text-slate-400 font-semibold tracking-wide uppercase">Active Contexts</p>
         <h3 class="text-4xl font-extrabold text-slate-900 mt-3 tracking-tight">94,201</h3>
         <span class="text-emerald-500 text-sm font-bold bg-emerald-50 px-2.5 py-1 rounded-md inline-block mt-3">↑ 8.6% run-rate</span>
+    </div>
+    <div class="bg-white p-8 rounded-2xl shadow-xl shadow-slate-100 border border-slate-200/60 transition-transform hover:-translate-y-1 duration-300">
+        <p class="text-base text-slate-400 font-semibold tracking-wide uppercase">Projects</p>
+        <h3 class="text-4xl font-extrabold text-slate-900 mt-3 tracking-tight">{{len .Projects}}</h3>
+        <span class="text-indigo-500 text-sm font-bold bg-indigo-50 px-2.5 py-1 rounded-md inline-block mt-3">Cataloged by PostgreSQL</span>
     </div>
     <div class="bg-white p-8 rounded-2xl shadow-xl shadow-indigo-500/5 border border-slate-200/60 transition-transform hover:-translate-y-1 duration-300">
         <p class="text-base text-slate-400 font-semibold tracking-wide uppercase">AI Cluster Health</p>
@@ -209,6 +265,39 @@ const usersTemplate = `
 {{end}}
 `
 
+const projectsTemplate = `
+{{define "content"}}
+<div class="bg-white rounded-2xl shadow-xl shadow-slate-100 border border-slate-200/60 overflow-hidden">
+    <div class="p-6 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+        <h3 class="text-xl font-bold text-slate-800">Project Portfolio</h3>
+        <span class="text-sm font-medium text-slate-500">Managed by PostgreSQL</span>
+    </div>
+    <table class="w-full text-left border-collapse">
+        <thead>
+            <tr class="bg-slate-50/50 border-b border-slate-200">
+                <th class="p-5 font-bold text-slate-500 text-sm uppercase tracking-wider">ID</th>
+                <th class="p-5 font-bold text-slate-500 text-sm uppercase tracking-wider">Name</th>
+                <th class="p-5 font-bold text-slate-500 text-sm uppercase tracking-wider">Type</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+            {{range .Projects}}
+            <tr class="hover:bg-slate-50/80 transition-colors">
+                <td class="p-5 text-base text-slate-900 font-bold">{{.ID}}</td>
+                <td class="p-5 text-base text-slate-600 font-medium">{{.Name}}</td>
+                <td class="p-5 text-base text-slate-600 font-medium">{{.Type}}</td>
+            </tr>
+            {{else}}
+            <tr>
+                <td colspan="3" class="p-5 text-base text-slate-600">No projects found.</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+{{end}}
+`
+
 const settingsTemplate = `
 {{define "content"}}
 <div class="bg-white p-8 rounded-2xl shadow-xl shadow-slate-100 border border-slate-200/60 max-w-3xl">
@@ -265,6 +354,10 @@ func main() {
 		log.Fatalf("failed to connect to PostgreSQL: %v", err)
 	}
 
+	if err := ensureDatabaseSchema(ctx, pool); err != nil {
+		log.Fatalf("failed to ensure database schema: %v", err)
+	}
+
 	log.Println("Connected to PostgreSQL successfully")
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -279,13 +372,30 @@ func main() {
 			users = nil
 		}
 
+		projects, err := loadProjects(r.Context(), pool)
+		if err != nil {
+			log.Printf("failed to load projects for dashboard: %v", err)
+			projects = nil
+		}
+
 		tmpl, _ := template.New("layout").Parse(layout + dashboardTemplate)
-		tmpl.Execute(w, PageData{Title: "Dashboard Space", ActiveTab: "dashboard", IconSizes: sizes, Users: users})
+		tmpl.Execute(w, PageData{Title: "Dashboard Space", ActiveTab: "dashboard", IconSizes: sizes, Users: users, Projects: projects})
 	})
 
 	http.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
 		tmpl, _ := template.New("layout").Parse(layout + usersTemplate)
 		tmpl.Execute(w, PageData{Title: "Identity Directory", ActiveTab: "users", IconSizes: sizes})
+	})
+
+	http.HandleFunc("/projects", func(w http.ResponseWriter, r *http.Request) {
+		projects, err := loadProjects(r.Context(), pool)
+		if err != nil {
+			log.Printf("failed to load projects: %v", err)
+			projects = nil
+		}
+
+		tmpl, _ := template.New("layout").Parse(layout + projectsTemplate)
+		tmpl.Execute(w, PageData{Title: "Project Portfolio", ActiveTab: "projects", IconSizes: sizes, Projects: projects})
 	})
 
 	http.HandleFunc("/settings", func(w http.ResponseWriter, r *http.Request) {
