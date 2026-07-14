@@ -1,15 +1,52 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
+	"os"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type PageData struct {
 	Title     string
 	ActiveTab string
 	IconSizes []string
+	Users     []User
+}
+
+type User struct {
+	ID   int
+	Name string
+}
+
+func getDatabaseDSN() string {
+	if dsn := os.Getenv("DATABASE_URL"); dsn != "" {
+		return dsn
+	}
+	return "postgresql://neondb_owner:npg_HucV8d0RzvKG@ep-divine-heart-asty9beu-pooler.c-4.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+}
+
+func loadUsers(ctx context.Context, pool *pgxpool.Pool) ([]User, error) {
+	rows, err := pool.Query(ctx, `SELECT id, "Name" FROM "User" ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []User
+	for rows.Next() {
+		var u User
+		if err := rows.Scan(&u.ID, &u.Name); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
 }
 
 const layout = `
@@ -84,12 +121,11 @@ const layout = `
 
 const dashboardTemplate = `
 {{define "content"}}
-<!-- Metric Cards with Ambient Cosmic Glow Shadows -->
 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
     <div class="bg-white p-8 rounded-2xl shadow-xl shadow-slate-100 border border-slate-200/60 transition-transform hover:-translate-y-1 duration-300">
         <p class="text-base text-slate-400 font-semibold tracking-wide uppercase">Core Node Users</p>
-        <h3 class="text-4xl font-extrabold text-slate-900 mt-3 tracking-tight">142,854</h3>
-        <span class="text-emerald-500 text-sm font-bold bg-emerald-50 px-2.5 py-1 rounded-md inline-block mt-3">↑ 14.2% velocity</span>
+        <h3 class="text-4xl font-extrabold text-slate-900 mt-3 tracking-tight">{{len .Users}}</h3>
+        <span class="text-emerald-500 text-sm font-bold bg-emerald-50 px-2.5 py-1 rounded-md inline-block mt-3">Live from PostgreSQL</span>
     </div>
     <div class="bg-white p-8 rounded-2xl shadow-xl shadow-slate-100 border border-slate-200/60 transition-transform hover:-translate-y-1 duration-300">
         <p class="text-base text-slate-400 font-semibold tracking-wide uppercase">Active Contexts</p>
@@ -103,15 +139,31 @@ const dashboardTemplate = `
     </div>
 </div>
 
-<!-- Main Highlight Slate Component -->
-<div class="bg-gradient-to-r from-slate-900 to-indigo-950 text-white p-10 rounded-3xl shadow-xl relative overflow-hidden">
-    <div class="absolute top-0 right-0 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl -mr-20 -mt-20"></div>
-    <div class="relative z-10 max-w-3xl">
-        <h4 class="text-2xl font-bold mb-4">Responsive High-Density Interfaces</h4>
-        <p class="text-slate-300 text-lg leading-relaxed">
-            This dashboard layout incorporates upscale element scaling (+15% footprint optimization), expanded text baselines, and gradient visual signifiers mirrored directly from contemporary generative consumer models.
-        </p>
+<div class="bg-white rounded-2xl shadow-xl shadow-slate-100 border border-slate-200/60 overflow-hidden">
+    <div class="p-6 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+        <h3 class="text-xl font-bold text-slate-800">Recent Users</h3>
+        <span class="text-sm font-medium text-slate-500">Loaded from the database</span>
     </div>
+    <table class="w-full text-left border-collapse">
+        <thead>
+            <tr class="bg-slate-50/50 border-b border-slate-200">
+                <th class="p-5 font-bold text-slate-500 text-sm uppercase tracking-wider">ID</th>
+                <th class="p-5 font-bold text-slate-500 text-sm uppercase tracking-wider">Name</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+            {{range .Users}}
+            <tr class="hover:bg-slate-50/80 transition-colors">
+                <td class="p-5 text-base text-slate-900 font-bold">{{.ID}}</td>
+                <td class="p-5 text-base text-slate-600 font-medium">{{.Name}}</td>
+            </tr>
+            {{else}}
+            <tr>
+                <td colspan="2" class="p-5 text-base text-slate-600">No users found.</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
 </div>
 {{end}}
 `
@@ -198,13 +250,37 @@ func main() {
 		"512x512 — High Fidelity PWA Splash Screen Vector",
 	}
 
+	dsn := getDatabaseDSN()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		log.Fatalf("failed to create PostgreSQL pool: %v", err)
+	}
+	defer pool.Close()
+
+	if err := pool.Ping(ctx); err != nil {
+		log.Fatalf("failed to connect to PostgreSQL: %v", err)
+	}
+
+	log.Println("Connected to PostgreSQL successfully")
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
 			return
 		}
+
+		users, err := loadUsers(r.Context(), pool)
+		if err != nil {
+			log.Printf("failed to load users for dashboard: %v", err)
+			users = nil
+		}
+
 		tmpl, _ := template.New("layout").Parse(layout + dashboardTemplate)
-		tmpl.Execute(w, PageData{Title: "Dashboard Space", ActiveTab: "dashboard", IconSizes: sizes})
+		tmpl.Execute(w, PageData{Title: "Dashboard Space", ActiveTab: "dashboard", IconSizes: sizes, Users: users})
 	})
 
 	http.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
@@ -215,6 +291,19 @@ func main() {
 	http.HandleFunc("/settings", func(w http.ResponseWriter, r *http.Request) {
 		tmpl, _ := template.New("layout").Parse(layout + settingsTemplate)
 		tmpl.Execute(w, PageData{Title: "Control Configurations", ActiveTab: "settings", IconSizes: sizes})
+	})
+
+	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		healthCtx, healthCancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer healthCancel()
+
+		var now time.Time
+		if err := pool.QueryRow(healthCtx, "select now()").Scan(&now); err != nil {
+			http.Error(w, fmt.Sprintf("database query failed: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		fmt.Fprintf(w, "PostgreSQL OK at %s", now.UTC().Format(time.RFC3339Nano))
 	})
 
 	log.Println("Server running at http://localhost:8080 ...")
