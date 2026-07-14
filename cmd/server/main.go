@@ -6,64 +6,74 @@ import (
 	"net/http"
 )
 
-// PageData represents the context passed to the HTML templates
 type PageData struct {
-	Title       string
-	ActiveTab   string
-	IconSizes   []string
+	Title     string
+	ActiveTab string
+	IconSizes []string
 }
 
-// Global layout containing the Sidebar and Header (configured with Gemini-standard icon definitions)
 const layout = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{.Title}} | Backoffice</title>
+    <title>{{.Title}} | Gemini Backoffice</title>
     
-    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
-    <link rel="manifest" href="/static/site.webmanifest">
-    
+    <!-- Tailwind CSS with custom scale & pulse-glow styles -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes cosmic-pulse {
+            0%, 100% { transform: scale(1); filter: drop-shadow(0 0 15px rgba(99, 102, 241, 0.6)); }
+            50% { transform: scale(1.08); filter: drop-shadow(0 0 25px rgba(168, 85, 247, 0.9)); }
+        }
+        .gemini-glow { animation: cosmic-pulse 4s infinite ease-in-out; }
+    </style>
 </head>
-<body class="bg-gray-100 font-sans flex h-screen overflow-hidden">
+<!-- Global scaling: text-lg sets a larger structural baseline -->
+<body class="bg-slate-50 text-slate-800 text-lg font-sans flex h-screen overflow-hidden antialiased">
 
-    <aside class="w-64 bg-slate-900 text-white flex flex-col justify-between">
-        <div class="p-5">
-            <h1 class="text-xl font-bold tracking-wider flex items-center gap-2">
-                <span class="w-4 h-4 rounded-full bg-indigo-500 animate-pulse"></span>
-                GEMINI ADMIN
+    <!-- Sidebar Navigation -->
+    <aside class="w-72 bg-slate-950 text-white flex flex-col justify-between border-r border-slate-900 shadow-2xl">
+        <div class="p-6">
+            <!-- Gemini Spark Header Effect -->
+            <h1 class="text-2xl font-bold tracking-tight flex items-center gap-3 bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+                <span class="w-5 h-5 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 gemini-glow"></span>
+                Gemini Admin
             </h1>
-            <nav class="mt-8 space-y-2">
-                <a href="/" class="flex items-center px-4 py-2.5 rounded transition-all {{if eq .ActiveTab "dashboard"}}bg-indigo-600 text-white{{else}}text-gray-400 hover:bg-slate-800{{end}}">
+            
+            <nav class="mt-12 space-y-3">
+                <a href="/" class="flex items-center px-5 py-3.5 rounded-xl transition-all duration-300 font-medium {{if eq .ActiveTab "dashboard"}}bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-600/20{{else}}text-slate-400 hover:bg-slate-900 hover:text-slate-200{{end}}">
                     Dashboard
                 </a>
-                <a href="/users" class="flex items-center px-4 py-2.5 rounded transition-all {{if eq .ActiveTab "users"}}bg-indigo-600 text-white{{else}}text-gray-400 hover:bg-slate-800{{end}}">
-                    Users
+                <a href="/users" class="flex items-center px-5 py-3.5 rounded-xl transition-all duration-300 font-medium {{if eq .ActiveTab "users"}}bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-600/20{{else}}text-slate-400 hover:bg-slate-900 hover:text-slate-200{{end}}">
+                    User Management
                 </a>
-                <a href="/settings" class="flex items-center px-4 py-2.5 rounded transition-all {{if eq .ActiveTab "settings"}}bg-indigo-600 text-white{{else}}text-gray-400 hover:bg-slate-800{{end}}">
-                    Settings
+                <a href="/settings" class="flex items-center px-5 py-3.5 rounded-xl transition-all duration-300 font-medium {{if eq .ActiveTab "settings"}}bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-600/20{{else}}text-slate-400 hover:bg-slate-900 hover:text-slate-200{{end}}">
+                    System Settings
                 </a>
             </nav>
         </div>
-        <div class="p-5 border-t border-slate-800 text-xs text-gray-500">
-            v1.0.0 • Go 1.22+
+        <div class="p-6 border-t border-slate-900 text-sm text-slate-500 tracking-wide">
+            Platform Engine v1.2.0 • Go
         </div>
     </aside>
 
+    <!-- Main Content Panel -->
     <div class="flex-1 flex flex-col overflow-y-auto">
-        <header class="bg-white border-b px-8 py-4 flex items-center justify-between">
-            <h2 class="text-xl font-semibold text-gray-800">{{.Title}}</h2>
-            <div class="flex items-center gap-3">
-                <span class="text-sm text-gray-600">Admin Account</span>
-                <div class="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm">A</div>
+        <!-- Expanded Header Header with Subtle Blur -->
+        <header class="bg-white/80 backdrop-blur-md border-b border-slate-200 px-10 py-6 flex items-center justify-between sticky top-0 z-50">
+            <h2 class="text-2xl font-bold text-slate-900 tracking-tight">{{.Title}}</h2>
+            <div class="flex items-center gap-4">
+                <span class="text-base text-slate-500 font-medium">Enterprise Core</span>
+                <div class="w-11 h-11 rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center text-white font-extrabold text-base shadow-md">
+                    GM
+                </div>
             </div>
         </header>
 
-        <main class="p-8">
+        <!-- Dynamic View Content -->
+        <main class="p-10 max-w-[1600px] w-full mx-auto space-y-8">
             {{template "content" .}}
         </main>
     </div>
@@ -74,61 +84,72 @@ const layout = `
 
 const dashboardTemplate = `
 {{define "content"}}
-<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-    <div class="bg-white p-6 rounded-xl shadow-sm border">
-        <p class="text-sm text-gray-500 font-medium">Total Users</p>
-        <h3 class="text-3xl font-bold text-gray-900 mt-2">1,248</h3>
-        <span class="text-green-500 text-xs font-semibold">↑ 12% this week</span>
+<!-- Metric Cards with Ambient Cosmic Glow Shadows -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+    <div class="bg-white p-8 rounded-2xl shadow-xl shadow-slate-100 border border-slate-200/60 transition-transform hover:-translate-y-1 duration-300">
+        <p class="text-base text-slate-400 font-semibold tracking-wide uppercase">Core Node Users</p>
+        <h3 class="text-4xl font-extrabold text-slate-900 mt-3 tracking-tight">142,854</h3>
+        <span class="text-emerald-500 text-sm font-bold bg-emerald-50 px-2.5 py-1 rounded-md inline-block mt-3">↑ 14.2% velocity</span>
     </div>
-    <div class="bg-white p-6 rounded-xl shadow-sm border">
-        <p class="text-sm text-gray-500 font-medium">Monthly Active</p>
-        <h3 class="text-3xl font-bold text-gray-900 mt-2">842</h3>
-        <span class="text-green-500 text-xs font-semibold">↑ 4.3% this week</span>
+    <div class="bg-white p-8 rounded-2xl shadow-xl shadow-slate-100 border border-slate-200/60 transition-transform hover:-translate-y-1 duration-300">
+        <p class="text-base text-slate-400 font-semibold tracking-wide uppercase">Active Contexts</p>
+        <h3 class="text-4xl font-extrabold text-slate-900 mt-3 tracking-tight">94,201</h3>
+        <span class="text-emerald-500 text-sm font-bold bg-emerald-50 px-2.5 py-1 rounded-md inline-block mt-3">↑ 8.6% run-rate</span>
     </div>
-    <div class="bg-white p-6 rounded-xl shadow-sm border">
-        <p class="text-sm text-gray-500 font-medium">Server Status</p>
-        <h3 class="text-3xl font-bold text-green-600 mt-2">Online</h3>
-        <span class="text-gray-400 text-xs">Uptime: 99.98%</span>
+    <div class="bg-white p-8 rounded-2xl shadow-xl shadow-indigo-500/5 border border-slate-200/60 transition-transform hover:-translate-y-1 duration-300">
+        <p class="text-base text-slate-400 font-semibold tracking-wide uppercase">AI Cluster Health</p>
+        <h3 class="text-4xl font-extrabold text-indigo-600 mt-3 tracking-tight">Nominal</h3>
+        <span class="text-slate-400 text-sm font-medium inline-block mt-3">Operational • 99.99%</span>
     </div>
 </div>
 
-<div class="bg-white p-6 rounded-xl shadow-sm border">
-    <h4 class="text-lg font-bold mb-4 text-gray-800">System Information</h4>
-    <p class="text-gray-600">This Go micro-backoffice uses custom Web Icon templates scaling up to 512x512 pixels to mimic native-app fidelity.</p>
+<!-- Main Highlight Slate Component -->
+<div class="bg-gradient-to-r from-slate-900 to-indigo-950 text-white p-10 rounded-3xl shadow-xl relative overflow-hidden">
+    <div class="absolute top-0 right-0 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl -mr-20 -mt-20"></div>
+    <div class="relative z-10 max-w-3xl">
+        <h4 class="text-2xl font-bold mb-4">Responsive High-Density Interfaces</h4>
+        <p class="text-slate-300 text-lg leading-relaxed">
+            This dashboard layout incorporates upscale element scaling (+15% footprint optimization), expanded text baselines, and gradient visual signifiers mirrored directly from contemporary generative consumer models.
+        </p>
+    </div>
 </div>
 {{end}}
 `
 
 const usersTemplate = `
 {{define "content"}}
-<div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+<div class="bg-white rounded-2xl shadow-xl shadow-slate-100 border border-slate-200/60 overflow-hidden">
+    <div class="p-6 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+        <h3 class="text-xl font-bold text-slate-800">Identity Directory</h3>
+        <button class="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-xl text-sm transition-all">Add Directory Entity</button>
+    </div>
     <table class="w-full text-left border-collapse">
         <thead>
-            <tr class="bg-gray-50 border-b">
-                <th class="p-4 font-semibold text-gray-600 text-sm">Name</th>
-                <th class="p-4 font-semibold text-gray-600 text-sm">Email</th>
-                <th class="p-4 font-semibold text-gray-600 text-sm">Role</th>
-                <th class="p-4 font-semibold text-gray-600 text-sm">Status</th>
+            <tr class="bg-slate-50/50 border-b border-slate-200">
+                <th class="p-5 font-bold text-slate-500 text-sm uppercase tracking-wider">Identity</th>
+                <th class="p-5 font-bold text-slate-500 text-sm uppercase tracking-wider">Secure Anchor Routing Address</th>
+                <th class="p-5 font-bold text-slate-500 text-sm uppercase tracking-wider">System Role</th>
+                <th class="p-5 font-bold text-slate-500 text-sm uppercase tracking-wider">Status Cluster</th>
             </tr>
         </thead>
-        <tbody>
-            <tr class="border-b">
-                <td class="p-4 text-sm text-gray-800 font-medium">Sarah Connor</td>
-                <td class="p-4 text-sm text-gray-600">sconnor@cyberdyne.com</td>
-                <td class="p-4 text-sm text-gray-600">Administrator</td>
-                <td class="p-4 text-sm"><span class="bg-green-100 text-green-800 text-xs px-2.5 py-1 rounded-full font-semibold">Active</span></td>
+        <tbody class="divide-y divide-slate-100">
+            <tr class="hover:bg-slate-50/80 transition-colors">
+                <td class="p-5 text-base text-slate-900 font-bold">Sarah Connor</td>
+                <td class="p-5 text-base text-slate-600 font-mono">sconnor@cyberdyne.io</td>
+                <td class="p-5 text-base text-slate-600 font-medium">Cluster Director</td>
+                <td class="p-5"><span class="bg-emerald-100 text-emerald-800 text-xs px-3 py-1.5 rounded-lg font-bold">Active</span></td>
             </tr>
-            <tr class="border-b">
-                <td class="p-4 text-sm text-gray-800 font-medium">John Doe</td>
-                <td class="p-4 text-sm text-gray-600">johndoe@example.com</td>
-                <td class="p-4 text-sm text-gray-600">Editor</td>
-                <td class="p-4 text-sm"><span class="bg-green-100 text-green-800 text-xs px-2.5 py-1 rounded-full font-semibold">Active</span></td>
+            <tr class="hover:bg-slate-50/80 transition-colors">
+                <td class="p-5 text-base text-slate-900 font-bold">John Doe</td>
+                <td class="p-5 text-base text-slate-600 font-mono">johndoe@gemini.net</td>
+                <td class="p-5 text-base text-slate-600 font-medium">Model Specialist</td>
+                <td class="p-5"><span class="bg-emerald-100 text-emerald-800 text-xs px-3 py-1.5 rounded-lg font-bold">Active</span></td>
             </tr>
-            <tr>
-                <td class="p-4 text-sm text-gray-800 font-medium">Miles Dyson</td>
-                <td class="p-4 text-sm text-gray-600">mdyson@cyberdyne.com</td>
-                <td class="p-4 text-sm text-gray-600">Viewer</td>
-                <td class="p-4 text-sm"><span class="bg-red-100 text-red-800 text-xs px-2.5 py-1 rounded-full font-semibold">Inactive</span></td>
+            <tr class="hover:bg-slate-50/80 transition-colors">
+                <td class="p-5 text-base text-slate-900 font-bold">Miles Dyson</td>
+                <td class="p-5 text-base text-slate-600 font-mono">mdyson@cyberdyne.io</td>
+                <td class="p-5 text-base text-slate-600 font-medium">System Engineer</td>
+                <td class="p-5"><span class="bg-rose-100 text-rose-800 text-xs px-3 py-1.5 rounded-lg font-bold">Revoked</span></td>
             </tr>
         </tbody>
     </table>
@@ -138,52 +159,65 @@ const usersTemplate = `
 
 const settingsTemplate = `
 {{define "content"}}
-<div class="bg-white p-6 rounded-xl shadow-sm border max-w-2xl">
-    <h4 class="text-lg font-bold mb-6 text-gray-800">Application Icon Settings</h4>
-    <div class="space-y-4">
+<div class="bg-white p-8 rounded-2xl shadow-xl shadow-slate-100 border border-slate-200/60 max-w-3xl">
+    <h4 class="text-xl font-bold mb-6 text-slate-900">Application Configuration</h4>
+    
+    <div class="space-y-6">
         <div>
-            <label class="block text-sm font-medium text-gray-700">App Name</label>
-            <input type="text" class="mt-1 block w-full rounded-md border border-gray-300 p-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" value="Gemini Backoffice">
+            <label class="block text-base font-bold text-slate-700 tracking-wide">Platform Title Identity</label>
+            <input type="text" class="mt-2 block w-full rounded-xl border border-slate-300 p-3.5 shadow-sm text-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all" value="Gemini Backoffice Platform">
         </div>
+        
         <div>
-            <label class="block text-sm font-medium text-gray-700">PWA Manifest (Required Icon Sizes)</label>
-            <ul class="mt-2 space-y-1 text-sm text-gray-500 list-disc list-inside">
-                {{range .IconSizes}}
-                <li>{{.}}</li>
-                {{end}}
-            </ul>
+            <label class="block text-base font-bold text-slate-700 tracking-wide mb-2">Required Asset Icons Manifest Mapping</label>
+            <div class="bg-slate-50 rounded-xl p-5 border border-slate-200">
+                <ul class="space-y-2 text-base text-slate-600 font-medium list-disc list-inside">
+                    {{range .IconSizes}}
+                    <li>{{.}}</li>
+                    {{end}}
+                </ul>
+            </div>
         </div>
-        <button class="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-md shadow-sm">Save Changes</button>
+        
+        <div class="pt-4">
+            <button class="px-6 py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-base font-bold rounded-xl shadow-lg shadow-indigo-600/20 transition-all transform active:scale-[0.98]">
+                Deploy Parameters
+            </button>
+        </div>
     </div>
 </div>
 {{end}}
 `
 
 func main() {
-	// Root base sizes
-	sizes := []string{"16x16 (Browser Tab)", "32x32 (Browser Tab HD)", "180x180 (Apple Touch Icon)", "192x192 (PWA Standard)", "512x512 (Splash Screen)"}
+	sizes := []string{
+		"16x16 — Standard Browser Tab Node",
+		"32x32 — High-Density Monitor Icon Matrix",
+		"180x180 — Apple Mobile Hardware Web Clip Container",
+		"192x192 — Chromium Progressive Web Application Vector",
+		"512x512 — High Fidelity PWA Splash Screen Vector",
+	}
 
-	// Router setup
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
 			return
 		}
 		tmpl, _ := template.New("layout").Parse(layout + dashboardTemplate)
-		tmpl.Execute(w, PageData{Title: "Dashboard Overview", ActiveTab: "dashboard", IconSizes: sizes})
+		tmpl.Execute(w, PageData{Title: "Dashboard Space", ActiveTab: "dashboard", IconSizes: sizes})
 	})
 
 	http.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
 		tmpl, _ := template.New("layout").Parse(layout + usersTemplate)
-		tmpl.Execute(w, PageData{Title: "Users Management", ActiveTab: "users", IconSizes: sizes})
+		tmpl.Execute(w, PageData{Title: "Identity Directory", ActiveTab: "users", IconSizes: sizes})
 	})
 
 	http.HandleFunc("/settings", func(w http.ResponseWriter, r *http.Request) {
 		tmpl, _ := template.New("layout").Parse(layout + settingsTemplate)
-		tmpl.Execute(w, PageData{Title: "System Settings", ActiveTab: "settings", IconSizes: sizes})
+		tmpl.Execute(w, PageData{Title: "Control Configurations", ActiveTab: "settings", IconSizes: sizes})
 	})
 
-	log.Println("Server starting on http://localhost:8080 ...")
+	log.Println("Server running at http://localhost:8080 ...")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		log.Fatal(err)
 	}
